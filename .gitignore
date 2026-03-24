@@ -1,0 +1,13 @@
+node_modules
+dist
+.firebase
+.firebaserc.local
+firebase-debug.log
+.DS_Store
+coverage
+web/.env.dev
+web/.env.prod
+web/.env.local
+web/.env.*.local
+functions/.env
+

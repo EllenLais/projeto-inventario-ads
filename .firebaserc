@@ -1,0 +1,7 @@
+{
+  "projects": {
+    "dev": "inventory-dev",
+    "prod": "inventory-prod"
+  }
+}
+
