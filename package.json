@@ -10,8 +10,8 @@
     "build:dev": "npm run build:dev --workspace web",
     "build:prod": "npm run build:prod --workspace web",
     "lint": "npm run lint --workspace web",
-    "deploy:dev": "npx firebase-tools deploy --project dev --only hosting,functions,firestore:rules,firestore:indexes",
-    "deploy:prod": "npx firebase-tools deploy --project prod --only hosting,functions,firestore:rules,firestore:indexes"
+    "deploy:dev": "npx firebase-tools deploy --project dev --only hosting,firestore:rules,firestore:indexes",
+    "deploy:prod": "npx firebase-tools deploy --project prod --only hosting,firestore:rules,firestore:indexes"
   },
   "engines": {
     "node": ">=20.0.0"

@@ -10,8 +10,190 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    function productOwner() {
-      return isSignedIn() && resource.data.userId == request.auth.uid;
+    function isNonEmptyString(value, maxLength) {
+      return value is string && value.size() > 0 && value.size() <= maxLength;
+    }
+
+    function isOptionalString(value, maxLength) {
+      return value is string && value.size() <= maxLength;
+    }
+
+    function isPrice(value) {
+      return (value is int || value is float) && value >= 0;
+    }
+
+    function isWholeNumber(value, minValue) {
+      return value is int && value >= minValue;
+    }
+
+    function isMovementType(value) {
+      return value == 'IN' || value == 'OUT';
+    }
+
+    function isProductOwner(data) {
+      return isSignedIn() && data.userId == request.auth.uid;
+    }
+
+    function movementAfter(movementId) {
+      return getAfter(/databases/$(database)/documents/movements/$(movementId)).data;
+    }
+
+    function validMovementDocument(data, movementId) {
+      return data.keys().hasOnly([
+          'id',
+          'productId',
+          'userId',
+          'type',
+          'quantity',
+          'reason',
+          'createdAt'
+        ])
+        && data.id == movementId
+        && isOwner(data.userId)
+        && isNonEmptyString(data.productId, 120)
+        && isMovementType(data.type)
+        && isWholeNumber(data.quantity, 1)
+        && isOptionalString(data.reason, 180)
+        && data.createdAt == request.time;
+    }
+
+    function validInitialMovement(productId, productData) {
+      return isNonEmptyString(productData.lastMovementId, 120)
+        && validMovementDocument(movementAfter(productData.lastMovementId), productData.lastMovementId)
+        && movementAfter(productData.lastMovementId).productId == productId
+        && movementAfter(productData.lastMovementId).userId == productData.userId
+        && movementAfter(productData.lastMovementId).type == 'IN'
+        && movementAfter(productData.lastMovementId).quantity == productData.quantity
+        && movementAfter(productData.lastMovementId).reason == 'Initial stock';
+    }
+
+    function validProductCreate(productId) {
+      let data = request.resource.data;
+
+      return data.keys().hasOnly([
+          'id',
+          'name',
+          'description',
+          'category',
+          'price',
+          'quantity',
+          'createdAt',
+          'updatedAt',
+          'userId',
+          'deleted',
+          'lastMovementId'
+        ])
+        && data.id == productId
+        && isProductOwner(data)
+        && isNonEmptyString(data.name, 120)
+        && isOptionalString(data.description, 600)
+        && isNonEmptyString(data.category, 80)
+        && isPrice(data.price)
+        && isWholeNumber(data.quantity, 0)
+        && data.createdAt == request.time
+        && data.updatedAt == request.time
+        && data.deleted == false
+        && data.lastMovementId is string
+        && (
+          (data.quantity == 0 && data.lastMovementId == '')
+          || (data.quantity > 0 && validInitialMovement(productId, data))
+        );
+    }
+
+    function validMetadataUpdate() {
+      return resource.data.deleted == false
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.quantity == resource.data.quantity
+        && request.resource.data.deleted == resource.data.deleted
+        && request.resource.data.lastMovementId == resource.data.lastMovementId
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          'name',
+          'description',
+          'category',
+          'price',
+          'updatedAt'
+        ])
+        && isNonEmptyString(request.resource.data.name, 120)
+        && isOptionalString(request.resource.data.description, 600)
+        && isNonEmptyString(request.resource.data.category, 80)
+        && isPrice(request.resource.data.price)
+        && request.resource.data.updatedAt == request.time;
+    }
+
+    function validStockUpdate(productId) {
+      let movementId = request.resource.data.lastMovementId;
+      let movement = movementAfter(movementId);
+
+      return resource.data.deleted == false
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.deleted == false
+        && request.resource.data.updatedAt == request.time
+        && isWholeNumber(request.resource.data.quantity, 0)
+        && isNonEmptyString(movementId, 120)
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          'quantity',
+          'updatedAt',
+          'lastMovementId'
+        ])
+        && validMovementDocument(movement, movementId)
+        && movement.productId == productId
+        && movement.userId == resource.data.userId
+        && (
+          (movement.type == 'IN'
+            && request.resource.data.quantity == resource.data.quantity + movement.quantity)
+          || (movement.type == 'OUT'
+            && request.resource.data.quantity == resource.data.quantity - movement.quantity)
+        );
+    }
+
+    function validSoftDelete() {
+      return resource.data.deleted == false
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.quantity == resource.data.quantity
+        && request.resource.data.lastMovementId == resource.data.lastMovementId
+        && request.resource.data.deleted == true
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          'deleted',
+          'updatedAt'
+        ]);
+    }
+
+    function validMovementCreate(movementId) {
+      let data = request.resource.data;
+      let productRef = /databases/$(database)/documents/products/$(data.productId);
+      let productExisted = exists(productRef);
+      let productBefore = get(productRef);
+      let productAfter = getAfter(productRef);
+
+      return validMovementDocument(data, movementId)
+        && productAfter.data.userId == request.auth.uid
+        && productAfter.data.lastMovementId == movementId
+        && (
+          (!productExisted
+            && productAfter.data.id == data.productId
+            && productAfter.data.deleted == false
+            && productAfter.data.quantity == data.quantity
+            && productAfter.data.createdAt == request.time
+            && productAfter.data.updatedAt == request.time
+            && data.type == 'IN'
+            && data.reason == 'Initial stock')
+          || (productExisted
+            && productBefore.data.userId == request.auth.uid
+            && productBefore.data.deleted == false
+            && productAfter.data.deleted == false
+            && productAfter.data.createdAt == productBefore.data.createdAt
+            && productAfter.data.updatedAt == request.time
+            && (
+              (data.type == 'IN'
+                && productAfter.data.quantity == productBefore.data.quantity + data.quantity)
+              || (data.type == 'OUT'
+                && productAfter.data.quantity == productBefore.data.quantity - data.quantity)
+            ))
+        );
     }
 
     match /users/{userId} {
@@ -19,31 +201,21 @@ service cloud.firestore {
     }
 
     match /products/{productId} {
-      allow read: if productOwner();
-
-      // Product creation, stock changes, and soft delete run through
-      // Cloud Functions so we can guarantee movement logging and
-      // enforce stock integrity on the server.
-      allow create, delete: if false;
-
-      allow update: if productOwner()
-        && request.resource.data.userId == resource.data.userId
-        && request.resource.data.quantity == resource.data.quantity
-        && request.resource.data.deleted == resource.data.deleted
-        && request.resource.data.createdAt == resource.data.createdAt
-        && request.resource.data.diff(resource.data).changedKeys().hasOnly([
-          'name',
-          'description',
-          'category',
-          'price',
-          'updatedAt'
-        ]);
+      allow read: if isProductOwner(resource.data);
+      allow create: if validProductCreate(productId);
+      allow update: if isProductOwner(resource.data)
+        && (
+          validMetadataUpdate()
+          || validStockUpdate(productId)
+          || validSoftDelete()
+        );
+      allow delete: if false;
     }
 
     match /movements/{movementId} {
       allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow write: if false;
+      allow create: if validMovementCreate(movementId);
+      allow update, delete: if false;
     }
   }
 }
-

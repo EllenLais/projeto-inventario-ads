@@ -12,7 +12,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useProductRecord } from '@/hooks/useProductRecord';
 import { formatCurrency, formatDateTime, formatMovementType } from '@/lib/formatters';
 import { getErrorMessage } from '@/lib/firebaseErrors';
-import { deleteProduct, updateStock } from '@/services/functionService';
+import { deleteProduct, updateStock } from '@/services/productService';
 
 export default function ProductDetailsPage() {
   const { productId } = useParams();
@@ -186,4 +186,3 @@ export default function ProductDetailsPage() {
     </div>
   );
 }
-

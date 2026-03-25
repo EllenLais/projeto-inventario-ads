@@ -12,24 +12,22 @@ export function getErrorMessage(error) {
       return 'Use a stronger password with at least 6 characters.';
     case 'auth/network-request-failed':
       return 'Network error while contacting Firebase. Check your connection and project configuration.';
-    case 'functions/failed-precondition':
+    case 'failed-precondition':
       return error.message || 'This action violates a business rule.';
-    case 'functions/invalid-argument':
+    case 'invalid-argument':
       return 'The submitted data is invalid. Please review the form.';
-    case 'functions/unavailable':
+    case 'not-found':
+      return error.message || 'The requested record was not found.';
+    case 'unauthenticated':
+      return 'You must be signed in to perform this action.';
     case 'unavailable':
-      return 'Cloud Functions is unavailable. Deploy the functions to this Firebase project or start the emulator.';
-    case 'functions/internal':
-      return 'The backend did not answer as a valid callable function. Confirm that createProduct is deployed in the same Firebase project and region.';
+    case 'aborted':
+      return 'This record changed while the action was running. Please try again.';
     case 'permission-denied':
       return 'You do not have permission to perform this action.';
     default:
-      if (
-        error?.message?.includes('CORS') ||
-        error?.message?.includes('Failed to fetch') ||
-        error?.message?.includes('preflight')
-      ) {
-        return 'The browser could not reach Firebase Functions. Confirm that the function is deployed in this project and that the region matches the frontend configuration.';
+      if (error?.message?.includes('Failed to fetch')) {
+        return 'The browser could not reach Firebase. Confirm your connection and project configuration.';
       }
 
       return error?.message || 'Something went wrong. Please try again.';

@@ -7,8 +7,7 @@ import PageHeader from '@/components/PageHeader';
 import ProductForm from '@/components/ProductForm';
 import { useAuth } from '@/hooks/useAuth';
 import { getErrorMessage } from '@/lib/firebaseErrors';
-import { createProduct } from '@/services/functionService';
-import { getProduct, updateProductMetadata } from '@/services/productService';
+import { createProduct, getProduct, updateProductMetadata } from '@/services/productService';
 
 export default function ProductFormPage() {
   const { productId } = useParams();
@@ -31,7 +30,7 @@ export default function ProductFormPage() {
         const response = await getProduct(productId);
 
         if (!ignore) {
-          if (!response || response.userId !== user?.uid) {
+          if (!response || response.userId !== user?.uid || response.deleted) {
             navigate('/404', { replace: true });
             return;
           }
@@ -67,7 +66,7 @@ export default function ProductFormPage() {
         title={isEdit ? `Update ${product?.name}` : 'Add a new product'}
         description={
           isEdit
-            ? 'You can safely edit metadata here. Stock quantity remains server-controlled to protect movement history.'
+            ? 'You can safely edit metadata here. Use the product details page whenever you need to adjust stock and keep the movement history complete.'
             : 'Creating a product with an initial quantity automatically stores the first stock movement.'
         }
       />
@@ -101,4 +100,3 @@ export default function ProductFormPage() {
     </div>
   );
 }
-

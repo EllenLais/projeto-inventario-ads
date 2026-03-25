@@ -48,13 +48,13 @@ export default function ProductForm({
           <FormField
             label="Initial stock"
             error={errors.initialQuantity?.message}
-            hint="If you start above zero, the backend creates an initial IN movement."
+            hint="If you start above zero, the app records an initial IN movement automatically."
           >
             <Input min="0" step="1" type="number" placeholder="0" {...register('initialQuantity')} />
           </FormField>
         ) : (
           <div className="rounded-3xl border border-dashed border-white/10 bg-white/5 p-5">
-            <p className="text-sm font-semibold text-slate-100">Stock is server-controlled</p>
+            <p className="text-sm font-semibold text-slate-100">Stock adjustments stay in the product record</p>
             <p className="mt-2 text-sm text-slate-400">
               Use the stock adjustment workflow on the product details page so every change creates a movement record.
             </p>
@@ -77,4 +77,3 @@ export default function ProductForm({
     </form>
   );
 }
-

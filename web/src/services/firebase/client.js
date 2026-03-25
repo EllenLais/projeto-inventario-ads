@@ -1,7 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
-import { getFunctions } from 'firebase/functions';
 
 const mode = import.meta.env.MODE || 'development';
 const firebaseConfig = {
@@ -41,16 +40,11 @@ export function assertFirebaseConfigured() {
 let app = null;
 let auth = null;
 let db = null;
-let functions = null;
 
 if (firebaseStatus.isConfigured) {
   app = initializeApp(firebaseConfig);
   auth = getAuth(app);
   db = getFirestore(app);
-  functions = getFunctions(
-    app,
-    import.meta.env.VITE_FIREBASE_FUNCTIONS_REGION || 'southamerica-east1',
-  );
 }
 
-export { app, auth, db, functions };
+export { app, auth, db };

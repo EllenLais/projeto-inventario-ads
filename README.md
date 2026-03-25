@@ -1,43 +1,24 @@
 # StockPilot IMS
 
-Production-ready Inventory Management System built with React, Vite, Tailwind CSS, and Firebase.
+Inventory management system built with React, Vite, Tailwind CSS, Firebase Auth, Cloud Firestore, and Firebase Hosting.
 
-## Architecture
+## Free-tier architecture
 
-- Frontend: React + Vite SPA in [`web/`](/home/matheus/Documentos/senai/imsi/projeto-inventario-ads/web) with Firebase Auth, Firestore subscriptions, protected routes, validation, toasts, and Tailwind UI.
-- Backend: Firebase Callable Functions in [`functions/src/index.js`](/home/matheus/Documentos/senai/imsi/projeto-inventario-ads/functions/src/index.js) for product creation, stock adjustments, and soft delete.
-- Data model: flat Firestore collections (`users`, `products`, `movements`) to make dashboard queries and recent movement feeds simpler than nested product subcollections.
-- Security: Firestore rules allow users to access only their own documents, block direct movement writes, and block direct stock changes from the client.
+- Frontend: `web/` contains the React SPA.
+- Data layer: product creation, stock adjustments, and soft delete now run directly from the client with Firestore `writeBatch` and `runTransaction`.
+- Security: `firestore.rules` validates ownership, movement logging, quantity transitions, and soft delete rules.
+- Hosting: `firebase.json` deploys Hosting plus Firestore rules/indexes only.
 
-## Folder Structure
+This keeps the app compatible with the Firebase free tier because it no longer depends on Cloud Functions.
 
-```text
-.
-├── .github/workflows/
-│   ├── deploy-dev.yml
-│   └── deploy-prod.yml
-├── functions/
-│   ├── package.json
-│   └── src/index.js
-├── web/
-│   ├── .env.dev.example
-│   ├── .env.prod.example
-│   ├── package.json
-│   └── src/
-│       ├── components/
-│       ├── contexts/
-│       ├── hooks/
-│       ├── lib/
-│       ├── pages/
-│       └── services/
-├── .firebaserc
-├── firebase.json
-├── firestore.indexes.json
-├── firestore.rules
-└── README.md
-```
+## Firebase projects
 
-## Firestore Collections
+The current aliases in `.firebaserc` are:
+
+- `dev` -> `projeto-inventario-ads-dev`
+- `prod` -> `projeto-inventario-ads`
+
+## Firestore collections
 
 ### `users/{uid}`
 
@@ -64,7 +45,8 @@ Production-ready Inventory Management System built with React, Vite, Tailwind CS
   "createdAt": "Timestamp",
   "updatedAt": "Timestamp",
   "userId": "uid",
-  "deleted": false
+  "deleted": false,
+  "lastMovementId": "movement-id"
 }
 ```
 
@@ -82,57 +64,32 @@ Production-ready Inventory Management System built with React, Vite, Tailwind CS
 }
 ```
 
-## Key Flows
+## Key flows
 
-### 1. Product creation with movement logging
+### Product creation
 
-Callable function: [`functions/src/index.js`](/home/matheus/Documentos/senai/imsi/projeto-inventario-ads/functions/src/index.js)
+`web/src/services/productService.js` creates the product document and, when `initialQuantity > 0`, writes the initial `IN` movement in the same batch.
 
-```js
-batch.set(productRef, {
-  id: productRef.id,
-  name,
-  description,
-  category,
-  price,
-  quantity: initialQuantity,
-  createdAt: now,
-  updatedAt: now,
-  userId,
-  deleted: false,
-});
-```
+### Stock adjustment
 
-If `initialQuantity > 0`, the same batch writes an `IN` movement.
+`web/src/services/productService.js` uses a Firestore transaction to:
 
-### 2. Stock updates enforced on the backend
+- load the current product
+- validate ownership and stock floor
+- update the quantity
+- create the movement entry
+- store `lastMovementId` on the product
 
-Callable function: [`functions/src/index.js`](/home/matheus/Documentos/senai/imsi/projeto-inventario-ads/functions/src/index.js)
+### Firestore rule enforcement
 
-```js
-const nextQuantity = type === 'IN' ? currentQuantity + quantity : currentQuantity - quantity;
+`firestore.rules` allows:
 
-if (nextQuantity < 0) {
-  throw new HttpsError('failed-precondition', 'Stock cannot go below zero.');
-}
-```
+- product metadata edits without changing quantity
+- stock changes only when they are paired with a valid movement document
+- soft delete only for the owner
+- movement creation only when it matches the corresponding product mutation
 
-The same transaction updates product stock and creates the movement record.
-
-### 3. Direct client stock writes blocked by rules
-
-Rule file: [`firestore.rules`](/home/matheus/Documentos/senai/imsi/projeto-inventario-ads/firestore.rules)
-
-```rules
-allow update: if productOwner()
-  && request.resource.data.userId == resource.data.userId
-  && request.resource.data.quantity == resource.data.quantity
-  && request.resource.data.deleted == resource.data.deleted;
-```
-
-This permits metadata edits while forcing stock updates and soft delete through Functions.
-
-## Local Setup
+## Local setup
 
 1. Install dependencies:
 
@@ -140,14 +97,14 @@ This permits metadata edits while forcing stock updates and soft delete through 
 npm install
 ```
 
-2. Create actual env files in [`web/`](/home/matheus/Documentos/senai/imsi/projeto-inventario-ads/web):
+2. Create the environment files:
 
 ```bash
 cp web/.env.dev.example web/.env.dev
 cp web/.env.prod.example web/.env.prod
 ```
 
-3. Fill the Firebase Web App config values for each environment.
+3. Fill each file with the Firebase Web App config from the corresponding project.
 
 4. Start the app:
 
@@ -155,63 +112,49 @@ cp web/.env.prod.example web/.env.prod
 npm run dev
 ```
 
-## Firebase Setup Steps
+## Firebase console setup
 
-1. Create two Firebase projects:
-   - `inventory-dev`
-   - `inventory-prod`
-2. In each project, enable:
-   - Authentication with Email/Password
-   - Cloud Firestore in production mode
-   - Cloud Functions
-   - Firebase Hosting
-3. Create a Web App in each Firebase project and copy its config into `web/.env.dev` or `web/.env.prod`.
-4. Create a service account JSON key in each project and add it to GitHub Secrets:
-   - `FIREBASE_SERVICE_ACCOUNT_DEV`
-   - `FIREBASE_SERVICE_ACCOUNT_PROD`
-5. Add web config secrets for both environments:
-   - `DEV_FIREBASE_API_KEY`
-   - `DEV_FIREBASE_AUTH_DOMAIN`
-   - `DEV_FIREBASE_PROJECT_ID`
-   - `DEV_FIREBASE_STORAGE_BUCKET`
-   - `DEV_FIREBASE_MESSAGING_SENDER_ID`
-   - `DEV_FIREBASE_APP_ID`
-   - `DEV_FIREBASE_FUNCTIONS_REGION`
-   - `PROD_FIREBASE_API_KEY`
-   - `PROD_FIREBASE_AUTH_DOMAIN`
-   - `PROD_FIREBASE_PROJECT_ID`
-   - `PROD_FIREBASE_STORAGE_BUCKET`
-   - `PROD_FIREBASE_MESSAGING_SENDER_ID`
-   - `PROD_FIREBASE_APP_ID`
-   - `PROD_FIREBASE_FUNCTIONS_REGION`
-6. Ensure the Firebase project IDs in [`.firebaserc`](/home/matheus/Documentos/senai/imsi/projeto-inventario-ads/.firebaserc) match the real project IDs.
+For each project, enable only:
 
-## Deployment Strategy
+- Authentication with Email/Password
+- Cloud Firestore
+- Firebase Hosting
 
-- Push to `dev`:
-  - installs dependencies
-  - creates `web/.env.dev`
-  - builds with `vite build --mode dev`
-  - deploys Hosting, Functions, Firestore rules, and indexes to `inventory-dev`
-- Push to `main`:
-  - installs dependencies
-  - creates `web/.env.prod`
-  - builds with `vite build --mode prod`
-  - deploys Hosting, Functions, Firestore rules, and indexes to `inventory-prod`
+You do not need Cloud Functions or a paid plan for this version.
 
-Workflow files:
+## GitHub Actions secrets
 
-- [`deploy-dev.yml`](/home/matheus/Documentos/senai/imsi/projeto-inventario-ads/.github/workflows/deploy-dev.yml)
-- [`deploy-prod.yml`](/home/matheus/Documentos/senai/imsi/projeto-inventario-ads/.github/workflows/deploy-prod.yml)
+Required secrets for `dev`:
 
-## Private Route and Session Handling
+- `FIREBASE_SERVICE_ACCOUNT_DEV`
+- `DEV_FIREBASE_API_KEY`
+- `DEV_FIREBASE_AUTH_DOMAIN`
+- `DEV_FIREBASE_PROJECT_ID`
+- `DEV_FIREBASE_STORAGE_BUCKET`
+- `DEV_FIREBASE_MESSAGING_SENDER_ID`
+- `DEV_FIREBASE_APP_ID`
 
-- Firebase Auth persists the session in local browser storage.
-- [`AuthContext.jsx`](/home/matheus/Documentos/senai/imsi/projeto-inventario-ads/web/src/contexts/AuthContext.jsx) listens to `onAuthStateChanged`.
-- [`ProtectedRoute.jsx`](/home/matheus/Documentos/senai/imsi/projeto-inventario-ads/web/src/components/ProtectedRoute.jsx) blocks private screens for unauthenticated users.
+Required secrets for `prod`:
 
-## Notes for Extension
+- `FIREBASE_SERVICE_ACCOUNT_PROD`
+- `PROD_FIREBASE_API_KEY`
+- `PROD_FIREBASE_AUTH_DOMAIN`
+- `PROD_FIREBASE_PROJECT_ID`
+- `PROD_FIREBASE_STORAGE_BUCKET`
+- `PROD_FIREBASE_MESSAGING_SENDER_ID`
+- `PROD_FIREBASE_APP_ID`
 
-- Add Firebase Emulator support if you want isolated local backend testing.
-- Add unit tests around form validation and function payload validation if you want CI coverage beyond build verification.
-- Add recovery workflows for soft-deleted products if product restoration becomes a requirement.
+## Deployment
+
+- `npm run deploy:dev` deploys `hosting`, `firestore:rules`, and `firestore:indexes` to alias `dev`
+- `npm run deploy:prod` deploys the same targets to alias `prod`
+
+GitHub workflows:
+
+- `.github/workflows/deploy-dev.yml`
+- `.github/workflows/deploy-prod.yml`
+
+## Notes
+
+- The `functions/` folder can remain in the repository as legacy reference code, but it is no longer deployed.
+- Existing products continue to work. New writes add `lastMovementId` automatically.

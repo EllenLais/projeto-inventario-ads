@@ -14,7 +14,7 @@ export default defineConfig({
       output: {
         manualChunks: {
           react: ['react', 'react-dom', 'react-router-dom'],
-          firebase: ['firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/functions'],
+          firebase: ['firebase/app', 'firebase/auth', 'firebase/firestore'],
           forms: ['react-hook-form', '@hookform/resolvers', 'zod'],
           ui: ['lucide-react', 'sonner', 'clsx'],
         },

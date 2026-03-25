@@ -39,7 +39,7 @@ export default function StockAdjustmentDialog({ isOpen, onClose, onSubmit, isSub
           <div>
             <h3 className="text-xl font-semibold text-white">Adjust stock</h3>
             <p className="mt-1 text-sm text-slate-400">
-              The backend validates this update and stores a movement record.
+              This update changes the stock and saves a movement record in Firestore.
             </p>
           </div>
           <button
@@ -86,4 +86,3 @@ export default function StockAdjustmentDialog({ isOpen, onClose, onSubmit, isSub
     </div>
   );
 }
-
